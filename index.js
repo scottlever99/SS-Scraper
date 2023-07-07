@@ -1,4 +1,8 @@
 const pt = require('puppeteer');
+const { EmailClient } = require("@azure/communication-email");
+
+const connectionString = 'endpoint=https://holidayfindertestcom.communication.azure.com/;accesskey=6wa8h82EL33UiJUezY2wd88Wm44P1LkkeM6wQBxU8mnXKcsqC1kRFvhzjihIF1xmh0wcp04Fzenu6kgcHancmA==';
+const emailClient = new EmailClient(connectionString);
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
@@ -32,6 +36,7 @@ function formatDate(date, withDash = false){
     return result + year + month + day;
 }
 
+let deals = [];
 (async () => {
     const browser = await pt.launch({
         headless : false,
@@ -45,7 +50,7 @@ function formatDate(date, withDash = false){
     let sun = getNextDayOfTheWeek("Sun");
 
     let fromLocArr = ['EMA', 'STN', 'BHX'];
-    for(let weeks = 0; weeks < 6; weeks++){
+    for(let weeks = 0; weeks < 2; weeks++){
         let formatFri = formatDate(fri);
         let formatSun = formatDate(sun);
 
@@ -121,10 +126,31 @@ function formatDate(date, withDash = false){
                 await delay(500);
                 
                 await page2.goto(flightPage);
-                //await delay(25000); //USE THIS LATER
-                await delay(500);
+                await delay(25000);
 
-                //DO SOME STUFF
+                let listViewContainer = await page2.$('.Ui-Flights-Results-Components-ListView-container ');
+                let lvId = await listViewContainer.evaluate(e => e.id);
+
+                let ntChild2 = 1;
+
+                for(ntChild2; ntChild2 < 4; ntChild2++){
+                    var topPriceElS = '#' + lvId + ' > div > div:nth-child('+ ntChild2+') > div.yuAt.yuAt-pres-rounded > div > div > div.nrc6-price-section > div > div.Oihj-bottom-booking > div > div:nth-child(1) > a > div > div > div > div';
+                    let exists = (await page2.$(topPriceElS)) || "";
+                    if (exists !== "") break;
+                }
+
+                let topPriceEl = await page2.waitForSelector('#' + lvId + ' > div > div:nth-child('+ntChild2+') > div.yuAt.yuAt-pres-rounded > div > div > div.nrc6-price-section > div > div.Oihj-bottom-booking > div > div:nth-child(1) > a > div > div > div > div');
+                let topPrice = (await topPriceEl.evaluate(e => e.innerHTML)).substring(1);
+                console.log(topPrice);
+
+                if (topPrice > 100) continue;
+
+                let dealLinkEl = await page2.waitForSelector('#'+ lvId +' > div > div:nth-child('+ntChild2+') > div.yuAt.yuAt-pres-rounded > div > div > div.nrc6-price-section > div > div.Oihj-bottom-booking > div > div.M_JD-booking-btn > div > div > div > div > a');
+                let dealLink = await dealLinkEl.evaluate(e => e.href);
+
+                console.log(dealLink);
+
+                deals.push(dealLink);
 
                 await page2.close();
 
@@ -141,11 +167,32 @@ function formatDate(date, withDash = false){
             }
         }
 
-        
-
         fri = getNextWeek(fri);
         sun = getNextWeek(sun);
     }
+
+    let dealString = "";
+    for(let u = 0; u < deals.length; u++){
+        dealString = dealString + deals[u] + ' \r\n\r\n';
+    }
+
+    const message = {
+        senderAddress: "holidayfinder@0b74ef9e-41b1-452d-aed2-540a5c124f1b.azurecomm.net",
+        content: {
+          subject: "Holiday Deals",
+          plainText: dealString,
+        },
+        recipients: {
+          to: [
+            {
+              address: "leversl21@gmail.com",
+            }
+          ]
+        },
+      };
+      
+      const poller = await emailClient.beginSend(message);
+      const response = await poller.pollUntilDone();
 
     await browser.close()
   })()
