@@ -4,6 +4,164 @@ const { EmailClient } = require("@azure/communication-email");
 const connectionString = 'endpoint=https://holidayfindertestcom.communication.azure.com/;accesskey=6wa8h82EL33UiJUezY2wd88Wm44P1LkkeM6wQBxU8mnXKcsqC1kRFvhzjihIF1xmh0wcp04Fzenu6kgcHancmA==';
 const emailClient = new EmailClient(connectionString);
 
+const fromLocArr = ['EMA', 'STN', 'BHX'];
+const noGoCountries = ['United Kingdom', 'Ireland'];
+const priceLimit = 100;
+const weeksAhead = 5;
+
+
+let deals = [];
+(async () => {
+    const browser = await pt.launch({
+        headless : false,
+        defaultViewport: null,
+        // protocolTimeout: 1000
+    })
+    const page = await browser.newPage()
+
+    let firstTime = true;
+
+    let fri = getNextDayOfTheWeek("Fri");
+    let sun = getNextDayOfTheWeek("Sun");
+
+    for(let weeks = 0; weeks < weeksAhead; weeks++){
+        let formatFri = formatDate(fri);
+        let formatSun = formatDate(sun);
+
+        for(let fromLocInt = 0; fromLocInt < fromLocArr.length; fromLocInt++){
+            let fromLoc = fromLocArr[fromLocInt];
+
+            await page.goto('https://www.kayak.co.uk/explore/'+fromLoc+'-anywhere/'+formatFri+','+formatSun);
+            await delay(3000);
+
+            let body = await page.$('body');
+            let id = await body.evaluate(e => e.id);
+
+            if (firstTime){            
+                let ntChild = 69;
+
+                for(ntChild; ntChild < 75; ntChild++){
+                    var acceptSelect = '#'+ id + ' > div:nth-child('+ ntChild + ') > div > div.dDYU.dDYU-mod-theme-default.dDYU-mod-variant-default.dDYU-mod-padding-none.dDYU-mod-position-top.dDYU-mod-direction-none.dDYU-mod-visible.a11y-focus-outlines.dDYU-mod-shadow-elevation-one > div > div > div.dDYU-body > div > div > div.iInN-footer > button';
+                    let exists = (await page.$(acceptSelect)) || "";
+                    if (exists !== "") break;
+                }
+
+                var acceptSelect = '#'+ id + ' > div:nth-child('+ ntChild + ') > div > div.dDYU.dDYU-mod-theme-default.dDYU-mod-variant-default.dDYU-mod-padding-none.dDYU-mod-position-top.dDYU-mod-direction-none.dDYU-mod-visible.a11y-focus-outlines.dDYU-mod-shadow-elevation-one > div > div > div.dDYU-body > div > div > div.iInN-footer > button';
+
+                const acceptButton = await page.waitForSelector(acceptSelect);
+                await acceptButton.click();
+
+                firstTime = false;
+            }
+
+            await delay(2000);
+
+            let gridItems = await page.$$('.Explore-GridViewItem')
+
+            for(let t = 0; t < gridItems.length; t++){
+                var elId = await gridItems[t].evaluate(e => e.id);
+
+                var countryNameEl = await page.waitForSelector('#'+elId+' > button > div > div._eY._iwG._ihs._irH > div._ibU._ibV._irp._ihr._ihs._1Z._idj._ilc._ihp._iai._ihq > div._iC8._1W._ib0._iYh._igh.Country__Name');
+                var countryName = await countryNameEl.evaluate(e => e.innerHTML);
+
+                if (noGoCountries.includes(countryName)) continue;
+
+                var priceEl = await page.waitForSelector('#'+elId+' > button > div > div._eY._iwG._ihs._irH > div._ihz._irp._iqB._ilc._iai > div._ib0._18._igh._ial._iaj');
+                var price = (await priceEl.evaluate(e => e.innerHTML)).substring(6);
+
+                if (price > priceLimit) continue;
+
+                var button = await page.waitForSelector('#'+elId+' > button');
+                await button.click();
+
+                await delay(2000);
+
+                var checkoutBoxEl = await page.$('.Explore-FlightClickoutBox');
+                var checkoutBoxId = await checkoutBoxEl.evaluate(e => e.id);
+                var titleEl = await page.waitForSelector('#'+checkoutBoxId+' > div:nth-child(1) > div.clickout-box-title');
+                var dest = (await titleEl.evaluate(e => e.innerHTML)).substring(7);
+
+                let formatNewFri = formatDate(fri, true);
+                let formatNewSun = formatDate(sun, true);
+
+                var flightPage = 'https://www.kayak.co.uk/flights/'+fromLoc+'-'+dest+'/'+formatNewFri+'/'+formatNewSun+'/?sort=price_a';
+
+                let page2 = await browser.newPage();
+                await delay(500);
+                
+                await page2.goto(flightPage);
+                await delay(25000);
+
+                let listViewContainer = await page2.$('.Ui-Flights-Results-Components-ListView-container ');
+                let lvId = await listViewContainer.evaluate(e => e.id);
+
+                let ntChild2 = 1;
+
+                for(ntChild2; ntChild2 < 4; ntChild2++){
+                    var topPriceElS = '#' + lvId + ' > div > div:nth-child('+ ntChild2+') > div.yuAt.yuAt-pres-rounded > div > div > div.nrc6-price-section > div > div.Oihj-bottom-booking > div > div:nth-child(1) > a > div > div > div > div';
+                    let exists = (await page2.$(topPriceElS)) || "";
+                    if (exists !== "") break;
+                }
+
+                let topPriceEl = await page2.waitForSelector('#' + lvId + ' > div > div:nth-child('+ntChild2+') > div.yuAt.yuAt-pres-rounded > div > div > div.nrc6-price-section > div > div.Oihj-bottom-booking > div > div:nth-child(1) > a > div > div > div > div');
+                let topPrice = (await topPriceEl.evaluate(e => e.innerHTML)).substring(1);
+                console.log(dest);
+                console.log(topPrice);
+
+                if (topPrice > priceLimit) continue;
+
+                let dealLinkEl = await page2.waitForSelector('#'+ lvId +' > div > div:nth-child('+ntChild2+') > div.yuAt.yuAt-pres-rounded > div > div > div.nrc6-price-section > div > div.Oihj-bottom-booking > div > div.M_JD-booking-btn > div > div > div > div > a');
+                let dealLink = await dealLinkEl.evaluate(e => e.href);
+
+                console.log(dealLink);
+
+                deals.push(dealLink);
+
+                await page2.close();
+
+                let clickHeaderEl = await page.$$('.Explore-DrawerSectionHeader');
+                console.log(clickHeaderEl.length);
+                var index = 0;
+                if (clickHeaderEl.length > 1) index = 1;
+                let clickHeaderId = await clickHeaderEl[index].evaluate(e => e.id);
+                let clickoutClose = await page.waitForSelector('#'+clickHeaderId+'-close');
+                await clickoutClose.click();
+
+                await delay(2000);
+            }
+        }
+        fri = getNextWeek(fri);
+        sun = getNextWeek(sun);
+    }
+
+    let dealString = "";
+    for(let u = 0; u < deals.length; u++){
+        dealString = dealString + deals[u] + ' \r\n\r\n';
+    }
+
+    const message = {
+        senderAddress: "holidayfinder@0b74ef9e-41b1-452d-aed2-540a5c124f1b.azurecomm.net",
+        content: {
+          subject: "Holiday Deals",
+          plainText: dealString,
+        },
+        recipients: {
+          to: [
+            {
+              address: "leverslwork@gmail.com",
+            }
+          ]
+        },
+      };
+      
+      const poller = await emailClient.beginSend(message);
+      const response = await poller.pollUntilDone();
+
+    await browser.close()
+  })()
+
+
+  
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 function getNextDayOfTheWeek(dayName, refDate = new Date()) {
@@ -35,167 +193,6 @@ function formatDate(date, withDash = false){
 
     return result + year + month + day;
 }
-
-let deals = [];
-(async () => {
-    const browser = await pt.launch({
-        headless : false,
-        defaultViewport: null
-    })
-    const page = await browser.newPage()
-
-    let firstTime = true;
-
-    let fri = getNextDayOfTheWeek("Fri");
-    let sun = getNextDayOfTheWeek("Sun");
-
-    let fromLocArr = ['EMA', 'STN', 'BHX'];
-    for(let weeks = 0; weeks < 2; weeks++){
-        let formatFri = formatDate(fri);
-        let formatSun = formatDate(sun);
-
-        for(let fromLocInt = 0; fromLocInt < fromLocArr.length; fromLocInt++){
-            let fromLoc = fromLocArr[fromLocInt];
-
-            await page.goto('https://www.kayak.co.uk/explore/'+fromLoc+'-anywhere/'+formatFri+','+formatSun);
-            await delay(3000);
-
-            
-
-            let body = await page.$('body');
-            let id = await body.evaluate(e => e.id);
-
-            if (firstTime){            
-                let ntChild = 69;
-
-                for(ntChild; ntChild < 75; ntChild++){
-                    var acceptSelect = '#'+ id + ' > div:nth-child('+ ntChild + ') > div > div.dDYU.dDYU-mod-theme-default.dDYU-mod-variant-default.dDYU-mod-padding-none.dDYU-mod-position-top.dDYU-mod-direction-none.dDYU-mod-visible.a11y-focus-outlines.dDYU-mod-shadow-elevation-one > div > div > div.dDYU-body > div > div > div.iInN-footer > button';
-                    let exists = (await page.$(acceptSelect)) || "";
-                    if (exists !== "") break;
-                }
-
-                var acceptSelect = '#'+ id + ' > div:nth-child('+ ntChild + ') > div > div.dDYU.dDYU-mod-theme-default.dDYU-mod-variant-default.dDYU-mod-padding-none.dDYU-mod-position-top.dDYU-mod-direction-none.dDYU-mod-visible.a11y-focus-outlines.dDYU-mod-shadow-elevation-one > div > div > div.dDYU-body > div > div > div.iInN-footer > button';
-
-                const acceptButton = await page.waitForSelector(acceptSelect);
-                await acceptButton.click();
-
-                firstTime = false;
-            }
-
-            await delay(2000);
-
-            let gridItems = await page.$$('.Explore-GridViewItem')
-            console.log(gridItems.length);
-        
-
-            for(let t = 0; t < gridItems.length; t++){
-                var elId = await gridItems[t].evaluate(e => e.id);
-
-                var countryNameEl = await page.waitForSelector('#'+elId+' > button > div > div._eY._iwG._ihs._irH > div._ibU._ibV._irp._ihr._ihs._1Z._idj._ilc._ihp._iai._ihq > div._iC8._1W._ib0._iYh._igh.Country__Name');
-                var countryName = await countryNameEl.evaluate(e => e.innerHTML);
-
-                let noGoCountries = ['United Kingdom', 'Ireland'];
-
-                if (noGoCountries.includes(countryName)) continue;
-
-                var priceEl = await page.waitForSelector('#'+elId+' > button > div > div._eY._iwG._ihs._irH > div._ihz._irp._iqB._ilc._iai > div._ib0._18._igh._ial._iaj');
-                var price = (await priceEl.evaluate(e => e.innerHTML)).substring(6);
-
-                console.log(countryName);
-                console.log(price);
-
-                if (price > 100) continue;
-
-                var button = await page.waitForSelector('#'+elId+' > button');
-                await button.click();
-
-                await delay(2000);
-
-                var checkoutBoxEl = await page.$('.Explore-FlightClickoutBox');
-                var checkoutBoxId = await checkoutBoxEl.evaluate(e => e.id);
-                var titleEl = await page.waitForSelector('#'+checkoutBoxId+' > div:nth-child(1) > div.clickout-box-title');
-                var dest = (await titleEl.evaluate(e => e.innerHTML)).substring(7);
-                console.log(dest);
-
-                let formatNewFri = formatDate(fri, true);
-                let formatNewSun = formatDate(sun, true);
-
-                var flightPage = 'https://www.kayak.co.uk/flights/'+fromLoc+'-'+dest+'/'+formatNewFri+'/'+formatNewSun+'/?sort=price_a';
-
-                let page2 = await browser.newPage();
-                await delay(500);
-                
-                await page2.goto(flightPage);
-                await delay(25000);
-
-                let listViewContainer = await page2.$('.Ui-Flights-Results-Components-ListView-container ');
-                let lvId = await listViewContainer.evaluate(e => e.id);
-
-                let ntChild2 = 1;
-
-                for(ntChild2; ntChild2 < 4; ntChild2++){
-                    var topPriceElS = '#' + lvId + ' > div > div:nth-child('+ ntChild2+') > div.yuAt.yuAt-pres-rounded > div > div > div.nrc6-price-section > div > div.Oihj-bottom-booking > div > div:nth-child(1) > a > div > div > div > div';
-                    let exists = (await page2.$(topPriceElS)) || "";
-                    if (exists !== "") break;
-                }
-
-                let topPriceEl = await page2.waitForSelector('#' + lvId + ' > div > div:nth-child('+ntChild2+') > div.yuAt.yuAt-pres-rounded > div > div > div.nrc6-price-section > div > div.Oihj-bottom-booking > div > div:nth-child(1) > a > div > div > div > div');
-                let topPrice = (await topPriceEl.evaluate(e => e.innerHTML)).substring(1);
-                console.log(topPrice);
-
-                if (topPrice > 100) continue;
-
-                let dealLinkEl = await page2.waitForSelector('#'+ lvId +' > div > div:nth-child('+ntChild2+') > div.yuAt.yuAt-pres-rounded > div > div > div.nrc6-price-section > div > div.Oihj-bottom-booking > div > div.M_JD-booking-btn > div > div > div > div > a');
-                let dealLink = await dealLinkEl.evaluate(e => e.href);
-
-                console.log(dealLink);
-
-                deals.push(dealLink);
-
-                await page2.close();
-
-                let clickHeaderEl = await page.$$('.Explore-DrawerSectionHeader');
-                console.log(clickHeaderEl.length);
-                var index = 0;
-                if (clickHeaderEl.length > 1) index = 1;
-                let clickHeaderId = await clickHeaderEl[index].evaluate(e => e.id);
-                let clickoutClose = await page.waitForSelector('#'+clickHeaderId+'-close');
-                await clickoutClose.click();
-
-                await delay(2000);
-
-            }
-        }
-
-        fri = getNextWeek(fri);
-        sun = getNextWeek(sun);
-    }
-
-    let dealString = "";
-    for(let u = 0; u < deals.length; u++){
-        dealString = dealString + deals[u] + ' \r\n\r\n';
-    }
-
-    const message = {
-        senderAddress: "holidayfinder@0b74ef9e-41b1-452d-aed2-540a5c124f1b.azurecomm.net",
-        content: {
-          subject: "Holiday Deals",
-          plainText: dealString,
-        },
-        recipients: {
-          to: [
-            {
-              address: "leversl21@gmail.com",
-            }
-          ]
-        },
-      };
-      
-      const poller = await emailClient.beginSend(message);
-      const response = await poller.pollUntilDone();
-
-    await browser.close()
-  })()
 
 
   // OLD SCRAPE
