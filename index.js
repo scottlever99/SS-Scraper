@@ -4,20 +4,24 @@ const { EmailClient } = require("@azure/communication-email");
 const connectionString = 'endpoint=https://holidayfindertestcom.communication.azure.com/;accesskey=6wa8h82EL33UiJUezY2wd88Wm44P1LkkeM6wQBxU8mnXKcsqC1kRFvhzjihIF1xmh0wcp04Fzenu6kgcHancmA==';
 const emailClient = new EmailClient(connectionString);
 
-const fromLocArr = ['EMA', 'STN', 'BHX'];
-const noGoCountries = ['United Kingdom', 'Ireland'];
-const priceLimit = 100;
-const weeksAhead = 5;
+const fromLocArr = ['BHX']//['EMA', 'STN', 'BHX'];
+const noGoCountries = [];//['United Kingdom', 'Ireland'];
+const priceLimit = 50;
+const weeksAhead = 1;
+
+const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36";
+  
 
 
 let deals = [];
 (async () => {
     const browser = await pt.launch({
-        headless : false,
+        headless : true,
         defaultViewport: null,
         // protocolTimeout: 1000
     })
     const page = await browser.newPage()
+    await page.setUserAgent(ua);
 
     let firstTime = true;
 
@@ -87,6 +91,8 @@ let deals = [];
                 var flightPage = 'https://www.kayak.co.uk/flights/'+fromLoc+'-'+dest+'/'+formatNewFri+'/'+formatNewSun+'/?sort=price_a';
 
                 let page2 = await browser.newPage();
+                await page2.setUserAgent(ua);
+                
                 await delay(500);
                 
                 await page2.goto(flightPage);
@@ -108,7 +114,19 @@ let deals = [];
                 console.log(dest);
                 console.log(topPrice);
 
-                if (topPrice > priceLimit) continue;
+                if (topPrice > priceLimit) {
+                  await page2.click();
+
+                  let clickHeaderEl = await page.$$('.Explore-DrawerSectionHeader');
+                  console.log(clickHeaderEl.length);
+                  var index = 0;
+                  if (clickHeaderEl.length > 1) index = 1;
+                  let clickHeaderId = await clickHeaderEl[index].evaluate(e => e.id);
+                  let clickoutClose = await page.waitForSelector('#'+clickHeaderId+'-close');
+                  await clickoutClose.click();
+
+                  continue;
+                }
 
                 let dealLinkEl = await page2.waitForSelector('#'+ lvId +' > div > div:nth-child('+ntChild2+') > div.yuAt.yuAt-pres-rounded > div > div > div.nrc6-price-section > div > div.Oihj-bottom-booking > div > div.M_JD-booking-btn > div > div > div > div > a');
                 let dealLink = await dealLinkEl.evaluate(e => e.href);
