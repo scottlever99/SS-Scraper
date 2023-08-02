@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@azure/communication-email": "^1.0.0"
+    "@azure/communication-email": "^1.0.0",
+    "mysql": "^2.18.1"
   }
 }

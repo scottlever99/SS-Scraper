@@ -1,19 +1,32 @@
 const pt = require('puppeteer');
 const { EmailClient } = require("@azure/communication-email");
+const mysql = require('mysql');
+
+const con = mysql.createConnection({
+  host: "localhost",
+  user: "yourusername",
+  password: "yourpassword"
+});
 
 const connectionString = 'endpoint=https://holidayfindertestcom.communication.azure.com/;accesskey=6wa8h82EL33UiJUezY2wd88Wm44P1LkkeM6wQBxU8mnXKcsqC1kRFvhzjihIF1xmh0wcp04Fzenu6kgcHancmA==';
 const emailClient = new EmailClient(connectionString);
 
-const fromLocArr = ['EMA', 'STN', 'BHX'];
-const noGoCountries = ['United Kingdom', 'Ireland'];
-const priceLimit = 100;
+let inputs = {
+  from: ['EMA', 'STN'],
+  noGo: ['United Kingdom', 'Ireland'],
+  priceLimit: 100
+}
+
+const fromLocArr = inputs.from;
+const noGoCountries = inputs.noGo;
+const priceLimit = inputs.priceLimit;
 const weeksAhead = 5;
 
 
 let deals = [];
 (async () => {
     const browser = await pt.launch({
-        headless : false,
+        headless : true,
         defaultViewport: null,
         // protocolTimeout: 1000
     })
@@ -31,7 +44,10 @@ let deals = [];
         for(let fromLocInt = 0; fromLocInt < fromLocArr.length; fromLocInt++){
             let fromLoc = fromLocArr[fromLocInt];
 
-            await page.goto('https://www.kayak.co.uk/explore/'+fromLoc+'-anywhere/'+formatFri+','+formatSun);
+            const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.181 Safari/537.36";
+            await page.setUserAgent(ua);
+
+            await page.goto('https://www.kayak.co.uk/explore/'+fromLoc+'-anywhere/'+formatFri+','+formatSun, {waitUntil: "domcontentloaded"});
             await delay(3000);
 
             let body = await page.$('body');
@@ -56,6 +72,7 @@ let deals = [];
 
             await delay(2000);
 
+            await page.waitForSelector('.Explore-GridViewItem');
             let gridItems = await page.$$('.Explore-GridViewItem')
 
             for(let t = 0; t < gridItems.length; t++){
@@ -108,7 +125,17 @@ let deals = [];
                 console.log(dest);
                 console.log(topPrice);
 
-                if (topPrice > priceLimit) continue;
+                if (topPrice > priceLimit) {
+                  page2.close();
+                  let clickHeaderEl = await page.$$('.Explore-DrawerSectionHeader');
+                  console.log(clickHeaderEl.length);
+                  var index = 0;
+                  if (clickHeaderEl.length > 1) index = 1;
+                  let clickHeaderId = await clickHeaderEl[index].evaluate(e => e.id);
+                  let clickoutClose = await page.waitForSelector('#'+clickHeaderId+'-close');
+                  await clickoutClose.click();
+                  continue;
+                }
 
                 let dealLinkEl = await page2.waitForSelector('#'+ lvId +' > div > div:nth-child('+ntChild2+') > div.yuAt.yuAt-pres-rounded > div > div > div.nrc6-price-section > div > div.Oihj-bottom-booking > div > div.M_JD-booking-btn > div > div > div > div > a');
                 let dealLink = await dealLinkEl.evaluate(e => e.href);
