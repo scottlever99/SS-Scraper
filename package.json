@@ -10,6 +10,9 @@
   "license": "ISC",
   "dependencies": {
     "@azure/communication-email": "^1.0.0",
+    "chrome-aws-lambda": "^10.1.0",
+    "puppeteer": "^20.8.0",
+    "puppeteer-core": "^20.8.0"
     "mysql": "^2.18.1"
   }
 }

@@ -31,6 +31,7 @@ let deals = [];
         // protocolTimeout: 1000
     })
     const page = await browser.newPage()
+    await page.setUserAgent(ua);
 
     let firstTime = true;
 
@@ -104,6 +105,8 @@ let deals = [];
                 var flightPage = 'https://www.kayak.co.uk/flights/'+fromLoc+'-'+dest+'/'+formatNewFri+'/'+formatNewSun+'/?sort=price_a';
 
                 let page2 = await browser.newPage();
+                await page2.setUserAgent(ua);
+                
                 await delay(500);
                 
                 await page2.goto(flightPage);
@@ -134,6 +137,7 @@ let deals = [];
                   let clickHeaderId = await clickHeaderEl[index].evaluate(e => e.id);
                   let clickoutClose = await page.waitForSelector('#'+clickHeaderId+'-close');
                   await clickoutClose.click();
+
                   continue;
                 }
 
